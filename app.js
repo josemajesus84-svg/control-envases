@@ -55,67 +55,60 @@ function api(fn, args = {}) {
     );
   }
 
-  const params = new URLSearchParams();
-  params.set('fn', fn);
-  params.set('data', JSON.stringify(args));
+  return new Promise((resolve, reject) => {
+    const callbackName =
+      '__gas_callback_' +
+      Date.now() +
+      '_' +
+      Math.random().toString(36).slice(2);
 
-  const url = API_URL + '?' + params.toString();
+    const script = document.createElement('script');
 
-  return fetch(url, {
-    method: 'GET',
-    mode: 'cors',
-    cache: 'no-store'
-  })
-    .then(async response => {
-      if (!response.ok) {
-        throw new Error(
-          `Google Apps Script respondió con HTTP ${response.status}.`
-        );
-      }
+    const params = new URLSearchParams();
+    params.set('fn', fn);
+    params.set('data', JSON.stringify(args));
+    params.set('callback', callbackName);
 
-      const text = await response.text();
+    const cleanup = () => {
+      delete window[callbackName];
+      script.remove();
+    };
 
-      if (!text) {
-        throw new Error('Respuesta vacía del servidor.');
-      }
+    window[callbackName] = data => {
+      cleanup();
 
-      let data;
-
-      try {
-        data = JSON.parse(text);
-      } catch (e) {
-        console.error('Respuesta recibida de Apps Script:', text);
-        throw new Error(
-          'Google Apps Script no devolvió un JSON válido.'
-        );
+      if (!data) {
+        reject(new Error('Respuesta vacía del servidor.'));
+        return;
       }
 
       if (data.ok === false || data.error) {
-        throw new Error(
-          data.error || 'Error desconocido del servidor.'
+        reject(
+          new Error(data.error || 'Error desconocido del servidor.')
         );
+        return;
       }
 
-      return data.result !== undefined
-        ? data.result
-        : data;
-    })
-    .catch(error => {
-      console.error(`Error API [${fn}]:`, error);
+      resolve(
+        data.result !== undefined
+          ? data.result
+          : data
+      );
+    };
 
-      if (
-        error instanceof TypeError ||
-        String(error.message).toLowerCase().includes('failed to fetch')
-      ) {
-        throw new Error(
+    script.onerror = () => {
+      cleanup();
+      reject(
+        new Error(
           'No se pudo conectar con Google Apps Script. ' +
-          'Verifica que el Web App esté desplegado y permita acceso desde tu sitio.'
-        );
-      }
+          'Verifica la URL del Web App y su acceso.'
+        )
+      );
+    };
 
-      throw error;
-    });
-
+    script.src = API_URL + '?' + params.toString();
+    document.head.appendChild(script);
+  });
 }
 function nowLocal(){const off=new Date().getTimezoneOffset();return new Date(Date.now()-off*60000).toISOString().slice(0,16)}
 
