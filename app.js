@@ -4,6 +4,7 @@
 // todos los datos de la app —clientes, movimientos, notificaciones, etc.— usan IndexedDB vía localForage.)
 const API_URL = 'https://script.google.com/macros/s/AKfycbzmPBCkbpCo0uMO-l8DviOveFRxQzbER0Veq86xlcGn1WFGWjuGtOdGYY_JKBhqyBTb/exec';
 
+
 localforage.config({name:'envases_retornables', storeName:'envases_data'});
 // Claves persistidas en IndexedDB (offline-first, ver sección 15 del prompt).
 const DB_KEYS = ['user','clients','catalog','pending','history','notifications','reminders','config'];
