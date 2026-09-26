@@ -1,0 +1,327 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#2f4a3c">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="stylesheet" href="styles.css">
+<title>Envases · Control de licorería</title>
+</head>
+<body>
+<div id="app">
+  <header class="topbar">
+    <button id="backBtn" class="icon-btn hidden" aria-label="Volver">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="21" height="21"><path d="M15 5l-7 7 7 7"/></svg>
+    </button>
+    <div id="topbarTitle">
+      <div class="eyebrow">Licorería</div>
+      <h1 id="topbarH1">Control de Envases</h1>
+    </div>
+    <button id="notifBtn" class="icon-btn hidden" aria-label="Notificaciones">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="21" height="21"><path d="M6 8a6 6 0 1 1 12 0c0 4 1.5 5.5 2 6H4c.5-.5 2-2 2-6Z"/><path d="M10 21a2 2 0 0 0 4 0"/></svg>
+      <span id="notifCount">0</span>
+    </button>
+  </header>
+
+  <main>
+    <!-- LOGIN -->
+    <section id="loginView" class="screen">
+      <div class="hero-card">
+        <div class="brand-mark">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="26" height="26"><path d="M8 3h8l1 5-3 3v7a2 2 0 0 1-2 2h0a2 2 0 0 1-2-2v-7L7 8Z"/><path d="M9.5 8h5"/></svg>
+        </div>
+        <h2>Buenas.</h2>
+        <p>Registra y controla cajas y envases retornables por cliente, incluso sin conexión.</p>
+        <form id="loginForm" class="form-card">
+          <label>Usuario<input id="loginUser" required placeholder="Admin"></label>
+          <label>PIN<input id="loginPin" required inputmode="numeric" type="password" placeholder="0000"></label>
+          <button class="primary big" type="submit">Ingresar</button>
+          <small>Demo: Admin / 0000 · Carlos / 1111 · Ana / 2222</small>
+        </form>
+      </div>
+    </section>
+
+    <!-- APP SHELL -->
+    <section id="mainView" class="hidden">
+
+      <!-- HOME -->
+      <section id="view-home" class="view">
+        <div class="welcome">
+          <div>Hola, <strong id="helloName">—</strong></div>
+          <span id="connectionBadge" class="badge">EN LÍNEA</span>
+        </div>
+
+        <div class="dashboard-grid">
+          <div class="stat"><b id="statCrates">0</b><small>Envases pendientes</small></div>
+          <div class="stat stat--amber"><b id="statClients">0</b><small>Clientes con deuda</small></div>
+          <div class="stat stat--bad"><b id="statAlerts">0</b><small>Alertas activas</small></div>
+          <div class="stat stat--teal"><b id="statReminders">0</b><small>Recordatorios</small></div>
+        </div>
+
+        <div class="actions">
+          <button class="action primary" data-nav="register">
+            <span class="icon-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 5v14M5 12h14"/></svg></span>
+            <b>Registrar envases</b><small>Desde una entrega o ticket</small>
+          </button>
+          <button class="action secondary" data-nav="return">
+            <span class="icon-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-1"/></svg></span>
+            <b>Registrar devolución</b><small>Descuenta envases pendientes</small>
+          </button>
+          <button class="action" data-nav="newclient">
+            <span class="icon-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="3.2"/><path d="M5 20c1-3.5 4-5.5 7-5.5s6 2 7 5.5"/></svg></span>
+            <b>Nuevo cliente</b><small>Disponible también offline</small>
+          </button>
+          <button class="action" data-nav="dashboard">
+            <span class="icon-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 8 12 4l9 4-9 4-9-4Z"/><path d="M3 8v8l9 4 9-4V8"/><path d="M12 12v8"/></svg></span>
+            <b>Dashboard</b><small>Quién debe más, por categoría</small>
+          </button>
+        </div>
+
+        <section class="panel">
+          <div class="section-title"><div><h2>Actividad reciente</h2><p>Últimos movimientos guardados en este dispositivo.</p></div></div>
+          <div id="localHistory" class="list"></div>
+        </section>
+      </section>
+
+      <!-- REGISTRAR ENVASES -->
+      <section id="view-register" class="view hidden">
+        <div class="view-head"><h2>Registrar envases</h2><p>Entrega de cajas o unidades a un cliente.</p></div>
+        <div id="regClientPicker"></div>
+        <form id="regForm" class="form-page hidden">
+          <div class="client-card" id="regClientCard"></div>
+
+          <div class="field-grid">
+            <label>Fecha y hora<input id="regDate" type="datetime-local"></label>
+            <label>N° de ticket / referencia <span class="opt">(opcional)</span><input id="regTicket" placeholder="Ej. T-00231"></label>
+          </div>
+
+          <div class="subsection">
+            <div class="subsection-head">
+              <span>Lectura rápida</span>
+              <button type="button" class="link-btn" id="regOcrBtn">Escanear ticket (OCR)</button>
+            </div>
+            <div id="ocrArea" class="hidden"></div>
+          </div>
+
+          <div class="subsection">
+            <div class="subsection-head"><span>Productos entregados</span></div>
+            <div id="regRows" class="row-list"></div>
+            <button type="button" class="add-row-btn" id="regAddRow">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16"><path d="M12 5v14M5 12h14"/></svg>
+              Agregar producto
+            </button>
+          </div>
+
+          <label>Notas <span class="opt">(opcional, solo referencia local)</span><textarea id="regNotes" placeholder="Ej. entregado por moto, cliente pidió factura…"></textarea></label>
+
+          <div class="summary-bar" id="regSummary"></div>
+        </form>
+        <div class="sticky-footer hidden" id="regFooter">
+          <button type="button" class="ghost" id="regCancel">Cancelar</button>
+          <button type="button" class="primaryBtn" id="regConfirm">Confirmar registro</button>
+        </div>
+      </section>
+
+      <!-- REGISTRAR DEVOLUCIÓN -->
+      <section id="view-return" class="view hidden">
+        <div class="view-head"><h2>Registrar devolución</h2><p>Descuenta envases pendientes de la deuda del cliente.</p></div>
+        <div id="retClientPicker"></div>
+        <form id="retForm" class="form-page hidden">
+          <div class="client-card" id="retClientCard"></div>
+          <label>Fecha y hora<input id="retDate" type="datetime-local"></label>
+          <div class="subsection">
+            <div class="subsection-head"><span>Envases pendientes de este cliente</span></div>
+            <div id="retRows" class="row-list"></div>
+          </div>
+          <label>Notas <span class="opt">(opcional, solo referencia local)</span><textarea id="retNotes" placeholder="Ej. devolvió en camioneta, faltó 1 caja rota…"></textarea></label>
+          <div class="summary-bar" id="retSummary"></div>
+        </form>
+        <div class="sticky-footer hidden" id="retFooter">
+          <button type="button" class="ghost" id="retCancel">Cancelar</button>
+          <button type="button" class="primaryBtn" id="retConfirm">Confirmar devolución</button>
+        </div>
+      </section>
+
+      <!-- NUEVO CLIENTE -->
+      <section id="view-newclient" class="view hidden">
+        <div class="view-head"><h2>Nuevo cliente</h2><p>Se guarda también sin conexión y se sincroniza después.</p></div>
+        <form id="ncForm" class="form-page">
+          <label>Nombre o razón social <span class="req">*</span><input id="ncName" required placeholder="Ej. Bodega Los Pinos"></label>
+          <div class="field-grid">
+            <label>Celular<input id="ncPhone" inputmode="tel" placeholder="9XXXXXXXX"></label>
+            <label>DNI / RUC<input id="ncDni" placeholder="Opcional"></label>
+          </div>
+          <label>Dirección<textarea id="ncAddress" placeholder="Referencia de ubicación"></textarea></label>
+          <div class="sticky-footer static">
+            <button type="button" class="ghost" id="ncCancel">Cancelar</button>
+            <button type="submit" class="primaryBtn">Guardar cliente</button>
+          </div>
+        </form>
+      </section>
+
+      <!-- CLIENTES -->
+      <section id="view-clients" class="view hidden">
+        <div class="view-head"><h2>Clientes</h2><p>Directorio completo.</p></div>
+        <button type="button" class="add-row-btn" id="clientsNewBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16"><path d="M12 5v14M5 12h14"/></svg>
+          Registrar nuevo cliente
+        </button>
+        <label class="search-field"><input id="clientsSearch" placeholder="Buscar por nombre, DNI o celular"></label>
+        <div id="clientsList" class="list"></div>
+      </section>
+
+      <!-- DASHBOARD -->
+      <section id="view-dashboard" class="view hidden">
+        <div class="view-head"><h2>Dashboard</h2><p>Quién debe más cajas, en general y por categoría.</p></div>
+        <div class="dashboard-grid" id="dashTop"></div>
+        <div class="filter-chips" id="dashFilters">
+          <button type="button" class="chip active" data-cat="GENERAL">General</button>
+          <button type="button" class="chip" data-cat="GASEOSA">Gaseosas</button>
+          <button type="button" class="chip" data-cat="CERVEZA">Cerveza</button>
+          <button type="button" class="chip" data-cat="OTROS">Otros</button>
+        </div>
+        <label class="search-field"><input id="dashSearch" placeholder="Buscar cliente"></label>
+        <div id="dashList" class="list"></div>
+      </section>
+
+      <!-- MÁS -->
+      <section id="view-more" class="view hidden">
+        <div class="view-head"><h2>Más opciones</h2><p>Alertas, recordatorios y configuración.</p></div>
+        <div id="moreList" class="list"></div>
+      </section>
+
+      <!-- DETALLE DE CLIENTE -->
+      <section id="view-clientdetail" class="view hidden">
+        <div id="cdContent"></div>
+      </section>
+
+      <!-- USUARIOS Y ACCESO -->
+      <section id="view-users" class="view hidden">
+        <div class="view-head"><h2>Usuarios y acceso</h2><p>Solo Admin puede modificar el correo y el PIN/contraseña de los usuarios.</p></div>
+        <div id="usersList" class="list"></div>
+      </section>
+
+      <!-- CONFIGURACIÓN -->
+      <section id="view-config" class="view hidden">
+        <div class="view-head"><h2>Configuración</h2><p>Estos valores controlan las alertas dinámicas.</p></div>
+        <form id="cfgForm" class="form-page">
+          <label>Días de morosidad<input id="cfgOld" type="number" min="0" value="15"></label>
+          <label>Cajas para alerta<input id="cfgCrates" type="number" min="1" value="10"></label>
+          <label>Días de alerta cliente<input id="cfgClient" type="number" min="0" value="15"></label>
+          <label>Días antes de recordatorio<input id="cfgReminder" type="number" min="0" value="3"></label>
+          <div class="sticky-footer static">
+            <button type="button" class="ghost" id="cfgCancel">Cancelar</button>
+            <button type="submit" class="primaryBtn">Guardar configuración</button>
+          </div>
+        </form>
+      </section>
+
+      <!-- RECORDATORIO: crear / editar -->
+      <section id="view-reminder" class="view hidden">
+        <div class="view-head"><h2 id="remHead">Crear recordatorio</h2><p>Se avisará antes del evento según los días configurados. Editar la fecha actualiza el mismo recordatorio, no crea uno nuevo.</p></div>
+        <form id="remForm" class="form-page">
+          <label>Título<input id="remTitle" placeholder="Backus viene"></label>
+          <label>Descripción<textarea id="remDesc" placeholder="Necesitamos recuperar cajas antes de esta fecha"></textarea></label>
+          <div class="field-grid">
+            <label>Fecha y hora<input id="remDate" type="datetime-local"></label>
+            <label>Anticipación (días)<input id="remDays" type="number" min="0" value="3"></label>
+          </div>
+          <div class="sticky-footer static">
+            <button type="button" class="ghost" id="remCancel">Cancelar</button>
+            <button type="submit" class="primaryBtn">Guardar recordatorio</button>
+          </div>
+        </form>
+      </section>
+
+      <!-- RECORDATORIOS: listado -->
+      <section id="view-reminders" class="view hidden">
+        <div class="view-head"><h2>Recordatorios</h2><p>Eventos operativos creados por Admin o cajeros (ej. visita de Backus).</p></div>
+        <button type="button" class="add-row-btn" id="remindersNewBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16"><path d="M12 5v14M5 12h14"/></svg>
+          Nuevo recordatorio
+        </button>
+        <div id="remindersList" class="list"></div>
+      </section>
+
+      <!-- ALERTAS -->
+      <section id="view-alerts" class="view hidden">
+        <div class="view-head"><h2>Notificaciones</h2><p>🔴 Urgentes · 🟠 Próximos · 🟡 Recordatorios. Generadas automáticamente según tu configuración; nunca modifican la deuda.</p></div>
+        <div class="filter-chips" id="alertsFilters"></div>
+        <div id="alertsList" class="list"></div>
+      </section>
+
+      <!-- PANEL OPERATIVO: RECUPERACIÓN DE ENVASES -->
+      <section id="view-recovery" class="view hidden">
+        <div class="view-head"><h2>📦 Revisar cajas pendientes</h2><p>Clientes con envases pendientes, ordenados por cantidad y antigüedad, para gestionar la recuperación.</p></div>
+        <div id="recoveryList" class="list"></div>
+      </section>
+
+    </section>
+  </main>
+
+  <nav id="bottomNav" class="bottom-nav hidden">
+    <button data-nav="home" class="nav-active">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 11 12 4l8 7"/><path d="M6 10v10h12V10"/></svg>
+      <span>Inicio</span>
+    </button>
+    <button data-nav="clients">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="8" r="3"/><path d="M2.5 19c.8-3 3.3-5 6.5-5s5.7 2 6.5 5"/><circle cx="17" cy="9" r="2.4"/><path d="M15.5 14.3c2.2.4 3.8 2 4.5 4.2"/></svg>
+      <span>Clientes</span>
+    </button>
+    <button data-nav="dashboard">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 8 12 4l9 4-9 4-9-4Z"/><path d="M3 8v8l9 4 9-4V8"/></svg>
+      <span>Dashboard</span>
+    </button>
+    <button data-nav="more">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>
+      <span>Más</span>
+    </button>
+    <button id="logoutBtn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+      <span>Salir</span>
+    </button>
+  </nav>
+</div>
+
+<div id="logoutModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="logoutTitle">
+  <div class="modal-card">
+    <div class="modal-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="24" height="24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+    </div>
+    <h2 id="logoutTitle">¿Salir de la sesión?</h2>
+    <p>Se cerrará tu sesión actual. Tus datos guardados localmente no se eliminarán.</p>
+    <div class="modal-actions">
+      <button type="button" class="ghost" id="logoutCancel">Cancelar</button>
+      <button type="button" class="primaryBtn" id="logoutConfirm">Sí, salir</button>
+    </div>
+  </div>
+</div>
+
+
+<div id="userModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="userModalTitle">
+  <div class="modal-card user-modal-card">
+    <div class="modal-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="24" height="24"><circle cx="12" cy="8" r="3"/><path d="M5 20c.8-3.2 3.2-5 7-5s6.2 1.8 7 5"/></svg>
+    </div>
+    <h2 id="userModalTitle">Editar usuario</h2>
+    <p id="userModalName">—</p>
+    <form id="userForm" class="user-form">
+      <input type="hidden" id="userId">
+      <label>Correo electrónico<input id="userEmail" type="email" autocomplete="off" placeholder="correo@ejemplo.com"></label>
+      <label>PIN / contraseña<input id="userPin" type="password" inputmode="numeric" autocomplete="new-password" placeholder="Dejar vacío para no cambiar"></label>
+      <small class="form-help">El PIN/contraseña actual solo se reemplaza si escribes uno nuevo. Los demás usuarios no pueden modificar estos datos.</small>
+      <div class="modal-actions">
+        <button type="button" class="ghost" id="userCancel">Cancelar</button>
+        <button type="submit" class="primaryBtn" id="userSave">Guardar cambios</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div id="toastRoot"></div>
+<script src="https://cdn.jsdelivr.net/npm/localforage@1.10.0/dist/localforage.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

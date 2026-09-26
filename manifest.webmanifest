@@ -1,0 +1,10 @@
+{
+  "name":"Control de Envases Retornables",
+  "short_name":"Envases",
+  "start_url":"./",
+  "display":"standalone",
+  "background_color":"#f3ede0",
+  "theme_color":"#2f4a3c",
+  "description":"Control móvil de cajas y unidades retornables.",
+  "icons":[]
+}
