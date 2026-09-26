@@ -2,7 +2,7 @@
 // Reemplaza por tu URL /exec después de desplegar el backend.
 // (Este único valor de configuración de desarrollo se guarda en localStorage;
 // todos los datos de la app —clientes, movimientos, notificaciones, etc.— usan IndexedDB vía localForage.)
-const API_URL = 'https://script.google.com/macros/s/AKfycbzmPBCkbpCo0uMO-l8DviOveFRxQzbER0Veq86xlcGn1WFGWjuGtOdGYY_JKBhqyBTb/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycbyUaJozEq7fzJEOex5OL21uWeFXaEh5PKYDuIMUS1Vu0c37mQmPjSpAo9kHS56cqUK0/exec';
 
 
 localforage.config({name:'envases_retornables', storeName:'envases_data'});
