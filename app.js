@@ -115,7 +115,7 @@ function api(fn, args = {}) {
 
       throw error;
     });
-}
+
 }
 function nowLocal(){const off=new Date().getTimezoneOffset();return new Date(Date.now()-off*60000).toISOString().slice(0,16)}
 
