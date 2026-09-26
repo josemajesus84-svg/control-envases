@@ -48,10 +48,107 @@ async function saveState(){
 function toast(msg){const d=document.createElement('div');d.className='toast';d.textContent=msg;$('#toastRoot').appendChild(d);setTimeout(()=>d.remove(),3000)}
 function online(){return navigator.onLine}
 function setConnection(){const b=$('#connectionBadge');if(!b)return;b.textContent=online()?'EN LÍNEA':'SIN CONEXIÓN';b.classList.toggle('offline',!online())}
-async function api(fn,args={}){
-  if(!API_URL) throw new Error('Configura API_URL en app.js para conectar Google Apps Script.');
-  const url=API_URL+'?fn='+encodeURIComponent(fn)+'&data='+encodeURIComponent(JSON.stringify(args));
-  const r=await fetch(url); const data=await r.json(); if(data.error) throw new Error(data.error); return data.result ?? data;
+function api(fn, args = {}) {
+
+  if (!API_URL) {
+    return Promise.reject(
+      new Error('Configura API_URL en app.js para conectar Google Apps Script.')
+    );
+  }
+
+  return new Promise((resolve, reject) => {
+
+    const callbackName =
+      'jsonp_' +
+      Date.now() +
+      '_' +
+      Math.random().toString(36).substring(2, 8);
+
+    const script = document.createElement('script');
+
+    const params = new URLSearchParams();
+
+    params.set('fn', fn);
+    params.set('data', JSON.stringify(args));
+    params.set('callback', callbackName);
+
+    const url = API_URL + '?' + params.toString();
+
+    let terminado = false;
+
+    function limpiar() {
+
+      terminado = true;
+
+      try {
+        delete window[callbackName];
+      } catch (e) {
+        window[callbackName] = undefined;
+      }
+
+      if (script.parentNode) {
+        script.parentNode.removeChild(script);
+      }
+    }
+
+    window[callbackName] = function(data) {
+
+      if (terminado) return;
+
+      limpiar();
+
+      if (!data) {
+        reject(new Error('Respuesta vacía del servidor.'));
+        return;
+      }
+
+      if (data.ok === false || data.error) {
+        reject(
+          new Error(
+            data.error || 'Error desconocido del servidor.'
+          )
+        );
+        return;
+      }
+
+      resolve(
+        data.result !== undefined
+          ? data.result
+          : data
+      );
+    };
+
+    script.onerror = function() {
+
+      if (terminado) return;
+
+      limpiar();
+
+      reject(
+        new Error(
+          'No se pudo conectar con Google Apps Script.'
+        )
+      );
+    };
+
+    script.src = url;
+
+    document.body.appendChild(script);
+
+    setTimeout(() => {
+
+      if (terminado) return;
+
+      limpiar();
+
+      reject(
+        new Error(
+          'Tiempo de espera agotado al conectar con el servidor.'
+        )
+      );
+
+    }, 30000);
+  });
 }
 function nowLocal(){const off=new Date().getTimezoneOffset();return new Date(Date.now()-off*60000).toISOString().slice(0,16)}
 
