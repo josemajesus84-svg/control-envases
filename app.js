@@ -2,8 +2,7 @@
 // Reemplaza por tu URL /exec después de desplegar el backend.
 // (Este único valor de configuración de desarrollo se guarda en localStorage;
 // todos los datos de la app —clientes, movimientos, notificaciones, etc.— usan IndexedDB vía localForage.)
-const API_URL = 'https://script.google.com/macros/s/AKfycbyUaJozEq7fzJEOex5OL21uWeFXaEh5PKYDuIMUS1Vu0c37mQmPjSpAo9kHS56cqUK0/exec';
-
+const API_URL = 'https://script.google.com/macros/s/AKfycbzmPBCkbpCo0uMO-l8DviOveFRxQzbER0Veq86xlcGn1WFGWjuGtOdGYY_JKBhqyBTb/exec';
 
 localforage.config({name:'envases_retornables', storeName:'envases_data'});
 // Claves persistidas en IndexedDB (offline-first, ver sección 15 del prompt).
@@ -48,72 +47,15 @@ async function saveState(){
 function toast(msg){const d=document.createElement('div');d.className='toast';d.textContent=msg;$('#toastRoot').appendChild(d);setTimeout(()=>d.remove(),3000)}
 function online(){return navigator.onLine}
 function setConnection(){const b=$('#connectionBadge');if(!b)return;b.textContent=online()?'EN LÍNEA':'SIN CONEXIÓN';b.classList.toggle('offline',!online())}
-function api(fn, args = {}) {
-  if (!API_URL) {
-    return Promise.reject(
-      new Error('Configura API_URL en app.js para conectar Google Apps Script.')
-    );
-  }
-
-  return new Promise((resolve, reject) => {
-    const callbackName =
-      '__gas_callback_' +
-      Date.now() +
-      '_' +
-      Math.random().toString(36).slice(2);
-
-    const script = document.createElement('script');
-
-    const params = new URLSearchParams();
-    params.set('fn', fn);
-    params.set('data', JSON.stringify(args));
-    params.set('callback', callbackName);
-
-    const cleanup = () => {
-      delete window[callbackName];
-      script.remove();
-    };
-
-    window[callbackName] = data => {
-      cleanup();
-
-      if (!data) {
-        reject(new Error('Respuesta vacía del servidor.'));
-        return;
-      }
-
-      if (data.ok === false || data.error) {
-        reject(
-          new Error(data.error || 'Error desconocido del servidor.')
-        );
-        return;
-      }
-
-      resolve(
-        data.result !== undefined
-          ? data.result
-          : data
-      );
-    };
-
-    script.onerror = () => {
-      cleanup();
-      reject(
-        new Error(
-          'No se pudo conectar con Google Apps Script. ' +
-          'Verifica la URL del Web App y su acceso.'
-        )
-      );
-    };
-
-    script.src = API_URL + '?' + params.toString();
-    document.head.appendChild(script);
-  });
+async function api(fn,args={}){
+  if(!API_URL) throw new Error('Configura API_URL en app.js para conectar Google Apps Script.');
+  const url=API_URL+'?fn='+encodeURIComponent(fn)+'&data='+encodeURIComponent(JSON.stringify(args));
+  const r=await fetch(url); const data=await r.json(); if(data.error) throw new Error(data.error); return data.result ?? data;
 }
 function nowLocal(){const off=new Date().getTimezoneOffset();return new Date(Date.now()-off*60000).toISOString().slice(0,16)}
 
 /* ---------------- ROUTER ---------------- */
-const VIEWS=['home','register','return','newclient','clients','dashboard','more','clientdetail','config','users','reminder','reminders','alerts','recovery'];
+const VIEWS=['home','register','return','newclient','clients','dashboard','more','clientdetail','config','users','backup','reminder','reminders','alerts','recovery'];
 function fmtDate(d){const dt=d?new Date(d):null;if(!dt||isNaN(dt.getTime()))return'—';const p=n=>String(n).padStart(2,'0');return`${p(dt.getDate())}/${p(dt.getMonth()+1)}/${dt.getFullYear()}`}
 function boxCapacity_(product){const t=state.catalog?.tipos?.find(x=>String(x.nombre)===String(product));const n=Number(t?.unidades_por_caja||t?.capacidad_unidades||0);return Number.isFinite(n)&&n>0?n:null}
 function debtUnits_(v){return Number(v?.UNIDAD||0)}
@@ -181,6 +123,7 @@ function route(){
   else if(view==='clientdetail')showClientDetail(param);
   else if(view==='config')showConfigView();
   else if(view==='users')showUsersView();
+  else if(view==='backup')showBackupView();
   else if(view==='reminder')showReminderView(param);
   else if(view==='reminders')showRemindersView();
   else if(view==='alerts')showAlertsView();
@@ -315,7 +258,7 @@ async function login(e){
   e.preventDefault();
   const usuario=$('#loginUser').value.trim(), pin=$('#loginPin').value.trim();
   try{
-    if(online()&&API_URL) state.user=await api('login',{usuario,pin});
+    if(online()&&API_URL) state.user=(await api('login',{usuario,pin})).usuario;
     else {
       const demos={Admin:{pin:'0000',rol:'admin'},Carlos:{pin:'1111',rol:'cajero'},Ana:{pin:'2222',rol:'cajero'}};
       if(!demos[usuario]||demos[usuario].pin!==pin) throw new Error('Usuario o PIN incorrecto en modo offline.');
@@ -334,6 +277,24 @@ $('#userForm')?.addEventListener('submit',saveUserEdit_);
 $('#userModal')?.addEventListener('click',e=>{if(e.target===e.currentTarget)closeUserModal()});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('#logoutModal').classList.contains('hidden'))closeLogoutConfirm()});
 $('#notifBtn').onclick=()=>navigate('alerts');
+
+/* ---------------- MODAL GENÉRICO DE CONFIRMACIÓN (usado por mantenimiento) ---------------- */
+function askConfirm(title,text,okLabel){
+  return new Promise(resolve=>{
+    const modal=$('#confirmModal');
+    if(!modal)return resolve(true);
+    $('#confirmTitle').textContent=title;
+    $('#confirmText').textContent=text;
+    const okBtn=$('#confirmOkBtn'), cancelBtn=$('#confirmCancelBtn');
+    okBtn.textContent=okLabel||'Confirmar';
+    modal.classList.remove('hidden');
+    document.body.classList.add('modal-open');
+    const close=result=>{modal.classList.add('hidden');document.body.classList.remove('modal-open');okBtn.onclick=null;cancelBtn.onclick=null;resolve(result)};
+    okBtn.onclick=()=>close(true);
+    cancelBtn.onclick=()=>close(false);
+  });
+}
+$('#confirmModal')?.addEventListener('click',e=>{if(e.target===e.currentTarget)$('#confirmCancelBtn')?.click()});
 
 /* ---------------- CLIENT PICKER (usado en register / return) ---------------- */
 function clientCardHTML(client,mode){
@@ -658,9 +619,11 @@ function showMoreView(){
   if(isAdmin){
     items.push({nav:'config',title:'Configuración',desc:'Días de morosidad, alerta y cantidad de cajas.'});
     items.push({nav:'users',title:'Usuarios y acceso',desc:'Administra el correo y PIN/contraseña de cada usuario.'});
+    items.push({nav:'backup',title:'Copias de seguridad y mantenimiento',desc:'Genera o restaura una copia de seguridad, y limpia registros antiguos.'});
   }else{
     items.push({title:'Configuración',desc:'Solo disponible para el usuario Admin.',locked:true});
     items.push({title:'Usuarios y acceso',desc:'Solo el usuario Admin puede cambiar correos y PIN/contraseñas.',locked:true});
+    items.push({title:'Copias de seguridad y mantenimiento',desc:'Solo el usuario Admin puede generar copias de seguridad o limpiar datos.',locked:true});
   }
   $('#moreList').innerHTML=items.map(it=>`<button type="button" class="item more-item" ${it.locked?'disabled':`data-nav="${it.nav}"`}><div><b>${esc(it.title)}</b><small>${esc(it.desc)}</small></div>${it.locked?'<span class="tag">Admin</span>':CHEVRON}</button>`).join('');
 }
@@ -777,6 +740,110 @@ async function saveUserEdit_(e){
     closeUserModal();
     await showUsersView();
   }catch(err){toast(err.message)}finally{btn.disabled=false}
+}
+
+/* ---------------- ADMIN: COPIAS DE SEGURIDAD Y MANTENIMIENTO ---------------- */
+function showBackupView(){
+  if(state.user?.rol!=='admin'){toast('Solo Admin puede acceder a mantenimiento.');navigate('home');return}
+  $('#cleanupDays').value=365;
+  $('#backupProgress').classList.add('hidden');
+  $('#backupProgress').textContent='';
+  $('#backupGenerateBtn').onclick=generarCopiaSeguridad_;
+  $('#backupUploadBtn').onclick=()=>$('#backupFileInput').click();
+  $('#backupFileInput').onchange=onBackupFileSelected_;
+  $('#cleanupBtn').onclick=limpiarRegistrosAntiguos_;
+}
+
+async function generarCopiaSeguridad_(){
+  if(!online()||!API_URL)return toast('Generar la copia de seguridad requiere conexión.');
+  const btn=$('#backupGenerateBtn');
+  btn.disabled=true;const originalLabel=btn.textContent;btn.textContent='Generando…';
+  try{
+    const backup=await api('generarBackup',{usuario:state.user.nombre});
+    const blob=new Blob([JSON.stringify(backup,null,2)],{type:'application/json'});
+    const url=URL.createObjectURL(blob);
+    const f=new Date();
+    const p=n=>String(n).padStart(2,'0');
+    const nombre=`backup_envases_${f.getFullYear()}-${p(f.getMonth()+1)}-${p(f.getDate())}_${p(f.getHours())}${p(f.getMinutes())}${p(f.getSeconds())}.json`;
+    const a=document.createElement('a');
+    a.href=url;a.download=nombre;document.body.appendChild(a);a.click();a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),4000);
+    toast('Copia de seguridad descargada: '+nombre);
+  }catch(e){toast('No se pudo generar la copia de seguridad: '+e.message)}
+  finally{btn.disabled=false;btn.textContent=originalLabel}
+}
+
+async function onBackupFileSelected_(e){
+  const file=e.target.files && e.target.files[0];
+  e.target.value=''; // permite volver a elegir el mismo archivo si algo falla
+  if(!file)return;
+  if(!online()||!API_URL)return toast('Restaurar una copia de seguridad requiere conexión.');
+
+  let backup;
+  try{
+    backup=JSON.parse(await file.text());
+  }catch(err){return toast('El archivo no es una copia de seguridad válida (JSON inválido).')}
+  if(!backup || typeof backup.hojas!=='object')return toast('El archivo no tiene el formato esperado de copia de seguridad.');
+
+  const ok=await askConfirm(
+    '¿Restaurar copia de seguridad?',
+    'Esto reemplazará TODOS los datos actuales (clientes, movimientos, usuarios, configuración, etc.) por los de este archivo. Esta acción no se puede deshacer. ¿Deseas continuar?',
+    'Sí, restaurar'
+  );
+  if(!ok)return;
+
+  const btn=$('#backupUploadBtn');btn.disabled=true;
+  const progress=$('#backupProgress');progress.classList.remove('hidden');
+  const CHUNK=40;
+  try{
+    const hojas=backup.hojas;
+    const nombresHoja=Object.keys(hojas);
+    for(const hoja of nombresHoja){
+      const filas=(hojas[hoja]&&hojas[hoja].filas)||[];
+      if(!filas.length){
+        progress.textContent=`Restaurando ${hoja}… (sin datos)`;
+        await api('restaurarLote',{usuario:state.user.nombre,hoja,filas:[],limpiarAntes:true});
+        continue;
+      }
+      let primerBloque=true;
+      for(let i=0;i<filas.length;i+=CHUNK){
+        const bloque=filas.slice(i,i+CHUNK);
+        progress.textContent=`Restaurando ${hoja}… ${Math.min(i+CHUNK,filas.length)}/${filas.length}`;
+        await api('restaurarLote',{usuario:state.user.nombre,hoja,filas:bloque,limpiarAntes:primerBloque});
+        primerBloque=false;
+      }
+    }
+    progress.textContent='Reconstruyendo cachés y notificaciones…';
+    await api('finalizarRestauracion',{usuario:state.user.nombre});
+    toast('Copia de seguridad restaurada correctamente.');
+    await loadData();
+    navigate('more');
+  }catch(e){
+    toast('Ocurrió un error restaurando la copia: '+e.message+'. Verifica los datos; algunas pestañas pueden haber quedado parcialmente restauradas.');
+  }finally{
+    btn.disabled=false;
+    progress.classList.add('hidden');
+  }
+}
+
+async function limpiarRegistrosAntiguos_(){
+  if(!online()||!API_URL)return toast('Limpiar registros antiguos requiere conexión.');
+  const dias=Number($('#cleanupDays').value);
+  if(!Number.isFinite(dias)||dias<30)return toast('La antigüedad mínima permitida es de 30 días.');
+  const ok=await askConfirm(
+    '¿Eliminar registros antiguos?',
+    `Se eliminará el historial de movimientos de clientes sin ninguna caja o unidad pendiente y sin actividad en los últimos ${dias} días, además de notificaciones ya atendidas de esa antigüedad. Los clientes con envases pendientes nunca se ven afectados. Esta acción no se puede deshacer.`,
+    'Sí, eliminar'
+  );
+  if(!ok)return;
+  const btn=$('#cleanupBtn');
+  btn.disabled=true;const originalLabel=btn.textContent;btn.textContent='Eliminando…';
+  try{
+    const res=await api('limpiarDatosAntiguos',{usuario:state.user.nombre,dias});
+    toast(`Listo: ${res.movimientosEliminados} movimientos de ${res.clientesLimpiados} cliente(s) saldados y ${res.notificacionesEliminadas} notificación(es) antigua(s) eliminadas.`);
+    await loadData();
+  }catch(e){toast(e.message)}
+  finally{btn.disabled=false;btn.textContent=originalLabel}
 }
 
 /* ---------------- RECORDATORIOS: crear / editar ---------------- */
