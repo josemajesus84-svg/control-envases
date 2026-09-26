@@ -49,106 +49,73 @@ function toast(msg){const d=document.createElement('div');d.className='toast';d.
 function online(){return navigator.onLine}
 function setConnection(){const b=$('#connectionBadge');if(!b)return;b.textContent=online()?'EN LÍNEA':'SIN CONEXIÓN';b.classList.toggle('offline',!online())}
 function api(fn, args = {}) {
-
   if (!API_URL) {
     return Promise.reject(
       new Error('Configura API_URL en app.js para conectar Google Apps Script.')
     );
   }
 
-  return new Promise((resolve, reject) => {
+  const params = new URLSearchParams();
+  params.set('fn', fn);
+  params.set('data', JSON.stringify(args));
 
-    const callbackName =
-      'jsonp_' +
-      Date.now() +
-      '_' +
-      Math.random().toString(36).substring(2, 8);
+  const url = API_URL + '?' + params.toString();
 
-    const script = document.createElement('script');
+  return fetch(url, {
+    method: 'GET',
+    mode: 'cors',
+    cache: 'no-store'
+  })
+    .then(async response => {
+      if (!response.ok) {
+        throw new Error(
+          `Google Apps Script respondió con HTTP ${response.status}.`
+        );
+      }
 
-    const params = new URLSearchParams();
+      const text = await response.text();
 
-    params.set('fn', fn);
-    params.set('data', JSON.stringify(args));
-    params.set('callback', callbackName);
+      if (!text) {
+        throw new Error('Respuesta vacía del servidor.');
+      }
 
-    const url = API_URL + '?' + params.toString();
-
-    let terminado = false;
-
-    function limpiar() {
-
-      terminado = true;
+      let data;
 
       try {
-        delete window[callbackName];
+        data = JSON.parse(text);
       } catch (e) {
-        window[callbackName] = undefined;
-      }
-
-      if (script.parentNode) {
-        script.parentNode.removeChild(script);
-      }
-    }
-
-    window[callbackName] = function(data) {
-
-      if (terminado) return;
-
-      limpiar();
-
-      if (!data) {
-        reject(new Error('Respuesta vacía del servidor.'));
-        return;
+        console.error('Respuesta recibida de Apps Script:', text);
+        throw new Error(
+          'Google Apps Script no devolvió un JSON válido.'
+        );
       }
 
       if (data.ok === false || data.error) {
-        reject(
-          new Error(
-            data.error || 'Error desconocido del servidor.'
-          )
+        throw new Error(
+          data.error || 'Error desconocido del servidor.'
         );
-        return;
       }
 
-      resolve(
-        data.result !== undefined
-          ? data.result
-          : data
-      );
-    };
+      return data.result !== undefined
+        ? data.result
+        : data;
+    })
+    .catch(error => {
+      console.error(`Error API [${fn}]:`, error);
 
-    script.onerror = function() {
+      if (
+        error instanceof TypeError ||
+        String(error.message).toLowerCase().includes('failed to fetch')
+      ) {
+        throw new Error(
+          'No se pudo conectar con Google Apps Script. ' +
+          'Verifica que el Web App esté desplegado y permita acceso desde tu sitio.'
+        );
+      }
 
-      if (terminado) return;
-
-      limpiar();
-
-      reject(
-        new Error(
-          'No se pudo conectar con Google Apps Script.'
-        )
-      );
-    };
-
-    script.src = url;
-
-    document.body.appendChild(script);
-
-    setTimeout(() => {
-
-      if (terminado) return;
-
-      limpiar();
-
-      reject(
-        new Error(
-          'Tiempo de espera agotado al conectar con el servidor.'
-        )
-      );
-
-    }, 30000);
-  });
+      throw error;
+    });
+}
 }
 function nowLocal(){const off=new Date().getTimezoneOffset();return new Date(Date.now()-off*60000).toISOString().slice(0,16)}
 
