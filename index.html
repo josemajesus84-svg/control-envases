@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#2f4a3c">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="stylesheet" href="styles.css">
-<title>Envases · Control de Minimarket </title>
+<title>Envases · Control de licorería</title>
 </head>
 <body>
 <div id="app">
@@ -15,7 +15,7 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="21" height="21"><path d="M15 5l-7 7 7 7"/></svg>
     </button>
     <div id="topbarTitle">
-      <div class="eyebrow">Minimarket </div>
+      <div class="eyebrow">Licorería</div>
       <h1 id="topbarH1">Control de Envases</h1>
     </div>
     <button id="notifBtn" class="icon-btn hidden" aria-label="Notificaciones">
@@ -217,6 +217,34 @@
         </form>
       </section>
 
+      <!-- COPIAS DE SEGURIDAD Y MANTENIMIENTO -->
+      <section id="view-backup" class="view hidden">
+        <div class="view-head"><h2>Copias de seguridad y mantenimiento</h2><p>Solo Admin puede generar o restaurar copias de seguridad, y limpiar registros antiguos.</p></div>
+
+        <section class="panel">
+          <div class="subsection">
+            <div class="subsection-head"><span>Generar copia de seguridad</span></div>
+            <p class="form-help">Descarga un archivo con todos los datos del sistema (clientes, movimientos, usuarios, configuración, etc.), con la fecha y hora en el nombre. Guárdalo en un lugar seguro.</p>
+            <button type="button" class="primaryBtn" id="backupGenerateBtn">Generar copia de seguridad</button>
+          </div>
+
+          <div class="subsection">
+            <div class="subsection-head"><span>Restaurar copia de seguridad</span></div>
+            <p class="form-help"><strong>Esto reemplaza todos los datos actuales</strong> por los del archivo que subas. Úsalo solo si sabes lo que haces; la acción no se puede deshacer.</p>
+            <input type="file" id="backupFileInput" accept="application/json,.json" class="hidden">
+            <button type="button" class="ghost" id="backupUploadBtn">Subir copia de seguridad</button>
+            <div id="backupProgress" class="form-help hidden"></div>
+          </div>
+
+          <div class="subsection">
+            <div class="subsection-head"><span>Eliminar registros antiguos</span></div>
+            <p class="form-help">Elimina el historial de movimientos de clientes que ya no tienen ninguna caja o unidad pendiente y no han tenido actividad en el periodo indicado, además de notificaciones ya atendidas de esa antigüedad. Nunca borra nada de un cliente con envases pendientes.</p>
+            <label>Antigüedad mínima (días)<input id="cleanupDays" type="number" min="30" value="365"></label>
+            <button type="button" class="ghost" id="cleanupBtn">Eliminar registros antiguos</button>
+          </div>
+        </section>
+      </section>
+
       <!-- RECORDATORIO: crear / editar -->
       <section id="view-reminder" class="view hidden">
         <div class="view-head"><h2 id="remHead">Crear recordatorio</h2><p>Se avisará antes del evento según los días configurados. Editar la fecha actualiza el mismo recordatorio, no crea uno nuevo.</p></div>
@@ -316,6 +344,20 @@
         <button type="submit" class="primaryBtn" id="userSave">Guardar cambios</button>
       </div>
     </form>
+  </div>
+</div>
+
+<div id="confirmModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
+  <div class="modal-card">
+    <div class="modal-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="24" height="24"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.3 3.9 2.7 17a2 2 0 0 0 1.7 3h15.2a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
+    </div>
+    <h2 id="confirmTitle">¿Confirmar acción?</h2>
+    <p id="confirmText">—</p>
+    <div class="modal-actions">
+      <button type="button" class="ghost" id="confirmCancelBtn">Cancelar</button>
+      <button type="button" class="primaryBtn" id="confirmOkBtn">Confirmar</button>
+    </div>
   </div>
 </div>
 
