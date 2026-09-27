@@ -4,9 +4,24 @@
 // todos los datos de la app —clientes, movimientos, notificaciones, etc.— usan IndexedDB vía localForage.)
 const API_URL = 'https://script.google.com/macros/s/AKfycbyUaJozEq7fzJEOex5OL21uWeFXaEh5PKYDuIMUS1Vu0c37mQmPjSpAo9kHS56cqUK0/exec';
 
+// --- NOTIFICACIONES PUSH (Firebase Cloud Messaging, gratis) ---
+// Reemplaza estos 2 valores después de crear tu proyecto Firebase gratuito (ver SETUP.md).
+// IMPORTANTE: FIREBASE_CONFIG debe copiarse también, tal cual, dentro de sw.js.
+// Si dejas los valores de ejemplo, la app funciona igual mostrando alertas en la app,
+// simplemente no habilita las notificaciones fuera de la app.
+const FIREBASE_CONFIG = {
+  apiKey: 'PEGA_TU_API_KEY_DE_FIREBASE',
+  authDomain: 'tu-proyecto.firebaseapp.com',
+  projectId: 'tu-proyecto',
+  storageBucket: 'tu-proyecto.appspot.com',
+  messagingSenderId: '000000000000',
+  appId: '1:000000000000:web:xxxxxxxxxxxxxxxxxxxxxx'
+};
+const FCM_VAPID_KEY = 'PEGA_TU_VAPID_KEY_DE_FIREBASE';
+
 localforage.config({name:'envases_retornables', storeName:'envases_data'});
 // Claves persistidas en IndexedDB (offline-first, ver sección 15 del prompt).
-const DB_KEYS = ['user','clients','catalog','pending','history','notifications','reminders','config'];
+const DB_KEYS = ['user','clients','catalog','pending','history','notifications','reminders','config','pushToken'];
 
 const state = {
   user: null,
@@ -17,6 +32,7 @@ const state = {
   notifications: [],
   reminders: [],
   config: {},
+  pushToken: null,
   ui: { regClientId:null, retClientId:null, afterCreate:null, alertsFilter:'TODOS' }
 };
 
@@ -640,6 +656,7 @@ function showMoreView(){
     {nav:'alerts',title:'Alertas',desc:'Urgentes, próximos y recordatorios generados automáticamente.'},
     {nav:'recovery',title:'Revisar cajas pendientes',desc:'Clientes ordenados por cantidad y antigüedad, para recuperación.'},
     {nav:'reminders',title:'Recordatorios',desc:'Crea, edita o desactiva avisos de eventos (ej. visita de Backus).'},
+    pushMoreItem_(),
   ];
   if(isAdmin){
     items.push({nav:'products',title:'Productos y envases',desc:'Agrega, edita o elimina los productos disponibles (ej. Pilsen, Cusqueña).'});
@@ -652,7 +669,11 @@ function showMoreView(){
     items.push({title:'Usuarios y acceso',desc:'Solo el usuario Admin puede cambiar correos y PIN/contraseñas.',locked:true});
     items.push({title:'Copias de seguridad y mantenimiento',desc:'Solo el usuario Admin puede generar copias de seguridad o limpiar datos.',locked:true});
   }
-  $('#moreList').innerHTML=items.map(it=>`<button type="button" class="item more-item" ${it.locked?'disabled':`data-nav="${it.nav}"`}><div><b>${esc(it.title)}</b><small>${esc(it.desc)}</small></div>${it.locked?'<span class="tag">Admin</span>':CHEVRON}</button>`).join('');
+  $('#moreList').innerHTML=items.map(it=>{
+    const attr=it.locked?'disabled':(it.action?`data-action="${it.action}"`:`data-nav="${it.nav}"`);
+    return `<button type="button" class="item more-item" ${attr}><div><b>${esc(it.title)}</b><small>${esc(it.desc)}</small></div>${it.locked?'<span class="tag">Admin</span>':CHEVRON}</button>`;
+  }).join('');
+  $('#moreList').querySelectorAll('[data-action="push"]').forEach(b=>b.onclick=()=>enablePush_());
 }
 
 /* ---------------- DETALLE DE CLIENTE ---------------- */
@@ -1089,6 +1110,55 @@ async function showRecoveryView(){
   $('#recoveryList').querySelectorAll('[data-ver]').forEach(b=>b.onclick=()=>navigate('clientdetail',b.dataset.ver));
 }
 
+/* ---------------- NOTIFICACIONES PUSH ---------------- */
+// true solo si el usuario ya reemplazó los valores de ejemplo en FIREBASE_CONFIG.
+function firebaseReady_(){
+  return typeof firebase!=='undefined' && FIREBASE_CONFIG.apiKey && FIREBASE_CONFIG.apiKey.indexOf('PEGA_')!==0 && FCM_VAPID_KEY.indexOf('PEGA_')!==0;
+}
+let messaging_=null;
+function initPush_(){
+  if(!('Notification' in window) || !('serviceWorker' in navigator) || !firebaseReady_())return;
+  try{
+    if(!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+    messaging_=firebase.messaging();
+    // Mensaje recibido con la app ABIERTA (en segundo plano lo maneja sw.js).
+    messaging_.onMessage(payload=>{
+      const n=payload?.notification||{};
+      toast(`${n.title||'Alerta'}${n.body?': '+n.body:''}`);
+      loadData();
+    });
+  }catch(e){ console.warn('No se pudo iniciar notificaciones push.', e); }
+}
+// Da el texto y estado del ítem de "Más" según el soporte del navegador,
+// si ya está configurado FIREBASE_CONFIG, y si el permiso está bloqueado.
+function pushMoreItem_(){
+  if(!('Notification' in window) || !('serviceWorker' in navigator)){
+    return {title:'Notificaciones no disponibles', desc:'Este navegador no soporta notificaciones push.', locked:true};
+  }
+  if(!firebaseReady_()){
+    return {title:'Notificaciones push (falta configurar)', desc:'Completa FIREBASE_CONFIG y FCM_VAPID_KEY en app.js y sw.js (ver SETUP.md).', locked:true};
+  }
+  if(Notification.permission==='denied'){
+    return {title:'Notificaciones bloqueadas', desc:'Actívalas desde los permisos del sitio en tu navegador/celular y vuelve a intentar.', locked:true};
+  }
+  return {action:'push', title: state.pushToken?'Notificaciones activadas ✓':'Activar notificaciones en este celular', desc:'Recibe alertas de morosidad, cajas y recordatorios aunque la app esté cerrada.'};
+}
+async function enablePush_(){
+  if(!firebaseReady_())return toast('Configura FIREBASE_CONFIG y FCM_VAPID_KEY primero.');
+  if(!online()||!API_URL)return toast('Activar notificaciones requiere conexión.');
+  try{
+    const perm=await Notification.requestPermission();
+    if(perm!=='granted')return toast('No se activaron las notificaciones (permiso denegado).');
+    const reg=await navigator.serviceWorker.ready;
+    const token=await messaging_.getToken({vapidKey:FCM_VAPID_KEY, serviceWorkerRegistration:reg});
+    if(!token)throw new Error('No se pudo obtener el token de notificaciones.');
+    await api('guardarPushToken',{usuario:state.user.nombre, token, user_agent:navigator.userAgent});
+    state.pushToken=token; await saveState();
+    toast('Notificaciones activadas en este celular.');
+    showMoreView();
+  }catch(e){ toast('No se pudieron activar las notificaciones: '+e.message); }
+}
+
 /* ---------------- SYNC ---------------- */
 async function syncPending(){
   if(!online()||!API_URL||!state.pending.length)return;
@@ -1106,6 +1176,7 @@ if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch
 render(); // primer pintado inmediato (login) mientras se lee IndexedDB
 (async function boot(){
   await loadLocalState();
+  initPush_();
   render();
   await loadData();
   await syncPending();
