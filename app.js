@@ -55,7 +55,7 @@ async function api(fn,args={}){
 function nowLocal(){const off=new Date().getTimezoneOffset();return new Date(Date.now()-off*60000).toISOString().slice(0,16)}
 
 /* ---------------- ROUTER ---------------- */
-const VIEWS=['home','register','return','newclient','clients','dashboard','more','clientdetail','config','users','backup','reminder','reminders','alerts','recovery'];
+const VIEWS=['home','register','return','newclient','clients','dashboard','more','clientdetail','config','users','products','backup','reminder','reminders','alerts','recovery'];
 function fmtDate(d){const dt=d?new Date(d):null;if(!dt||isNaN(dt.getTime()))return'—';const p=n=>String(n).padStart(2,'0');return`${p(dt.getDate())}/${p(dt.getMonth()+1)}/${dt.getFullYear()}`}
 function boxCapacity_(product){const t=state.catalog?.tipos?.find(x=>String(x.nombre)===String(product));const n=Number(t?.unidades_por_caja||t?.capacidad_unidades||0);return Number.isFinite(n)&&n>0?n:null}
 function debtUnits_(v){return Number(v?.UNIDAD||0)}
@@ -123,6 +123,7 @@ function route(){
   else if(view==='clientdetail')showClientDetail(param);
   else if(view==='config')showConfigView();
   else if(view==='users')showUsersView();
+  else if(view==='products')showProductsView();
   else if(view==='backup')showBackupView();
   else if(view==='reminder')showReminderView(param);
   else if(view==='reminders')showRemindersView();
@@ -275,6 +276,9 @@ $('#logoutModal').addEventListener('click',e=>{if(e.target===e.currentTarget)clo
 $('#userCancel')?.addEventListener('click',closeUserModal);
 $('#userForm')?.addEventListener('submit',saveUserEdit_);
 $('#userModal')?.addEventListener('click',e=>{if(e.target===e.currentTarget)closeUserModal()});
+$('#productCancel')?.addEventListener('click',closeProductModal);
+$('#productForm')?.addEventListener('submit',saveProductEdit_);
+$('#productModal')?.addEventListener('click',e=>{if(e.target===e.currentTarget)closeProductModal()});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('#logoutModal').classList.contains('hidden'))closeLogoutConfirm()});
 $('#notifBtn').onclick=()=>navigate('alerts');
 
@@ -617,10 +621,12 @@ function showMoreView(){
     {nav:'reminders',title:'Recordatorios',desc:'Crea, edita o desactiva avisos de eventos (ej. visita de Backus).'},
   ];
   if(isAdmin){
+    items.push({nav:'products',title:'Productos y envases',desc:'Agrega, edita o elimina los productos disponibles (ej. Pilsen, Cusqueña).'});
     items.push({nav:'config',title:'Configuración',desc:'Días de morosidad, alerta y cantidad de cajas.'});
     items.push({nav:'users',title:'Usuarios y acceso',desc:'Administra el correo y PIN/contraseña de cada usuario.'});
     items.push({nav:'backup',title:'Copias de seguridad y mantenimiento',desc:'Genera o restaura una copia de seguridad, y limpia registros antiguos.'});
   }else{
+    items.push({title:'Productos y envases',desc:'Solo el usuario Admin puede administrar el catálogo de productos.',locked:true});
     items.push({title:'Configuración',desc:'Solo disponible para el usuario Admin.',locked:true});
     items.push({title:'Usuarios y acceso',desc:'Solo el usuario Admin puede cambiar correos y PIN/contraseñas.',locked:true});
     items.push({title:'Copias de seguridad y mantenimiento',desc:'Solo el usuario Admin puede generar copias de seguridad o limpiar datos.',locked:true});
@@ -739,6 +745,92 @@ async function saveUserEdit_(e){
     toast('Usuario actualizado.');
     closeUserModal();
     await showUsersView();
+  }catch(err){toast(err.message)}finally{btn.disabled=false}
+}
+
+/* ---------------- ADMIN: PRODUCTOS Y ENVASES (catálogo) ---------------- */
+const PROD_CAT_LABEL={CERVEZA:'Cerveza',GASEOSA:'Gaseosa',OTROS:'Otros'};
+async function showProductsView(){
+  if(state.user?.rol!=='admin'){
+    toast('Solo Admin puede administrar los productos.');
+    navigate('home');
+    return;
+  }
+  const box=$('#productsList');
+  box.innerHTML=emptyState('Cargando productos…');
+  $('#productsNewBtn').onclick=()=>openProductEdit_(null);
+  if(!online()||!API_URL){
+    box.innerHTML=emptyState('La administración de productos requiere conexión.');
+    return;
+  }
+  try{
+    const products=await api('getTiposCaja',{usuario:state.user.nombre});
+    renderProductsList_(products);
+  }catch(e){
+    box.innerHTML=emptyState('No se pudieron cargar los productos.');
+    toast(e.message);
+  }
+}
+function renderProductsList_(products){
+  const sorted=[...products].sort((a,b)=>Number(b.activo)-Number(a.activo)||String(a.nombre).localeCompare(String(b.nombre)));
+  const box=$('#productsList');
+  box.innerHTML=sorted.length?sorted.map(p=>`<div class="item" style="align-items:flex-start">
+    <div><b>${esc(p.nombre)}</b><small>${esc(PROD_CAT_LABEL[p.categoria]||p.categoria)} · ${esc(p.unidades_por_caja)} u./caja${p.activo?'':' · Desactivado'}</small></div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
+      <button type="button" class="ghost small" data-edit="${esc(p.id)}">Editar</button>
+      ${p.activo?`<button type="button" class="ghost small" data-off="${esc(p.id)}">Eliminar</button>`:`<button type="button" class="ghost small" data-on="${esc(p.id)}">Reactivar</button>`}
+    </div>
+  </div>`).join(''):emptyState('No hay productos registrados todavía.');
+  box.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>openProductEdit_(products.find(p=>String(p.id)===String(b.dataset.edit))));
+  box.querySelectorAll('[data-off]').forEach(b=>b.onclick=()=>toggleProductActive_(products.find(p=>String(p.id)===String(b.dataset.off)),false));
+  box.querySelectorAll('[data-on]').forEach(b=>b.onclick=()=>toggleProductActive_(products.find(p=>String(p.id)===String(b.dataset.on)),true));
+}
+async function toggleProductActive_(product,activo){
+  if(!product)return;
+  if(!online()||!API_URL)return toast('Esta acción requiere conexión.');
+  if(!activo){
+    const ok=await askConfirm('¿Eliminar producto?','"'+product.nombre+'" dejará de aparecer para nuevos registros. El historial de movimientos ya guardado no se modifica.','Eliminar');
+    if(!ok)return;
+  }
+  try{
+    await api('guardarTipoCaja',{usuario:state.user.nombre,id:product.id,nombre:product.nombre,categoria:product.categoria,unidades_por_caja:product.unidades_por_caja,activo:activo});
+    toast(activo?'Producto reactivado.':'Producto eliminado.');
+    await loadData();
+    showProductsView();
+  }catch(e){toast(e.message)}
+}
+function openProductEdit_(product){
+  const modal=$('#productModal');
+  $('#productModalTitle').textContent=product?'Editar producto':'Nuevo producto';
+  $('#productId').value=product?product.id:'';
+  $('#productName').value=product?product.nombre:'';
+  $('#productCategory').value=product?product.categoria:'CERVEZA';
+  $('#productUnits').value=product?product.unidades_por_caja:12;
+  modal.classList.remove('hidden');
+  document.body.classList.add('modal-open');
+  setTimeout(()=>$('#productName')?.focus(),0);
+}
+function closeProductModal(){
+  $('#productModal')?.classList.add('hidden');
+  document.body.classList.remove('modal-open');
+}
+async function saveProductEdit_(e){
+  e.preventDefault();
+  if(!online()||!API_URL)return toast('Guardar un producto requiere conexión.');
+  const nombre=$('#productName').value.trim();
+  const categoria=$('#productCategory').value;
+  const unidades=Number($('#productUnits').value);
+  if(!nombre)return toast('El nombre del producto es obligatorio.');
+  if(!Number.isInteger(unidades)||unidades<=0)return toast('Las unidades por caja deben ser un número entero mayor a cero.');
+  const btn=$('#productSave');
+  btn.disabled=true;
+  try{
+    const id=$('#productId').value;
+    await api('guardarTipoCaja',{usuario:state.user.nombre,id:id||undefined,nombre,categoria,unidades_por_caja:unidades,activo:true});
+    toast(id?'Producto actualizado.':'Producto creado.');
+    closeProductModal();
+    await loadData();
+    showProductsView();
   }catch(err){toast(err.message)}finally{btn.disabled=false}
 }
 
