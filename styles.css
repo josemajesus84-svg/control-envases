@@ -28,6 +28,10 @@
   --teal-dark:#2c5c87;
   --teal-soft:#dcebf6;
 
+  --violet:#7c5cbf;
+  --violet-dark:#5f45a0;
+  --violet-soft:#ece4f8;
+
   --ok:#3f9d5b;
   --ok-soft:#e1f3e5;
   --warn:#c07a1e;
@@ -144,10 +148,10 @@ select{-webkit-appearance:none;appearance:none;border-radius:var(--radius-sm);ba
 .actions.compact{grid-template-columns:repeat(3,1fr)}
 .action{background:var(--card);border:1px solid var(--line-soft);border-radius:var(--radius-lg);padding:18px 16px;text-align:left;display:flex;flex-direction:column;gap:12px;align-items:flex-start;box-shadow:var(--shadow-sm);transition:transform .15s ease, box-shadow .15s ease}
 .action:hover{transform:translateY(-2px);box-shadow:var(--shadow-md)}
-.action svg{width:19px;height:19px;color:var(--moss)}
+.action svg{width:21px;height:21px;color:var(--moss)}
 .action b{font-size:14.5px;font-weight:700;color:var(--ink)}
 .action small{color:var(--ink-soft);font-size:11.5px;line-height:1.35}
-.action .icon-chip{width:40px;height:40px;border-radius:14px;background:var(--moss-tint);display:grid;place-items:center}
+.action .icon-chip{width:44px;height:44px;border-radius:15px;background:var(--moss-tint);display:grid;place-items:center}
 .action.primary{background:linear-gradient(155deg,var(--moss),var(--moss-dark));border-color:transparent}
 .action.primary .icon-chip{background:rgba(255,255,255,.18)}
 .action.primary svg{color:#fff}
@@ -155,6 +159,10 @@ select{-webkit-appearance:none;appearance:none;border-radius:var(--radius-sm);ba
 .action.primary small{color:#ffe3d4}
 .action.secondary .icon-chip{background:var(--amber-soft)}
 .action.secondary svg{color:var(--amber-dark)}
+.action.teal .icon-chip{background:var(--teal-soft)}
+.action.teal svg{color:var(--teal-dark)}
+.action.violet .icon-chip{background:var(--violet-soft)}
+.action.violet svg{color:var(--violet-dark)}
 
 .section-title{display:flex;justify-content:space-between;align-items:center}
 .section-title h2{font-size:17.5px;margin:0;color:var(--ink);font-weight:700}
@@ -332,6 +340,24 @@ a.ghost,a.primaryBtn{display:inline-flex;align-items:center;justify-content:cent
   .field-grid{grid-template-columns:1fr}
   .row-grid{grid-template-columns:1fr 104px 92px 32px}
   .pending-row{grid-template-columns:1fr auto auto}
+}
+
+/* En celulares angostos, 4 columnas fijas dejan el selector de producto muy
+   apretado y descentrado. Se pasa a 2 filas: producto arriba (ancho completo)
+   y cantidad + presentación + quitar abajo, centradas entre sí. */
+@media(max-width:520px){
+  .check-row{padding:14px}
+  .row-grid{
+    grid-template-columns:1fr auto auto;
+    grid-template-areas:
+      "prod prod prod"
+      "pres qty remove";
+    gap:10px 8px;
+  }
+  .row-grid .prod{grid-area:prod}
+  .row-grid .pres{grid-area:pres;min-width:0}
+  .row-grid .qty-stepper{grid-area:qty;width:126px;justify-self:center}
+  .row-grid .row-remove{grid-area:remove;justify-self:end}
 }
 
 /* =========================================================
