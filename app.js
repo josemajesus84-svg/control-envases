@@ -113,7 +113,10 @@ function route(){
   const target=$('#view-'+view);(target||$('#view-home')).classList.remove('hidden');
   $('#backBtn').classList.toggle('hidden',!state.user || view==='home');
   document.querySelectorAll('.bottom-nav [data-nav]').forEach(b=>b.classList.toggle('nav-active',b.dataset.nav===view));
-  if(view==='home'){renderHistory();updateStats()}
+  if(view==='home'){
+    renderHistory();updateStats();
+    refreshSharedHistory_().then(()=>{ if(parseHash().view==='home'){renderHistory();updateStats();saveState()} });
+  }
   else if(view==='register')showRegisterView(param);
   else if(view==='return')showReturnView(param);
   else if(view==='newclient')showNewClientView();
@@ -230,9 +233,23 @@ async function loadData(){
     await api('generarNotificaciones');
     state.notifications=await api('getNotificaciones',{incluirAtendidas:true});
     state.reminders=await api('getRecordatorios');
+    await refreshSharedHistory_();
     refreshLocalCrateAlerts();
     saveState(); render();
   }catch(e){toast('No se pudo sincronizar: '+e.message)}
+}
+
+// Combina el historial compartido del servidor (visible para todos los
+// usuarios y dispositivos) con los movimientos que este dispositivo aún
+// no ha podido sincronizar, para no perder la actividad reciente que
+// todavía está pendiente de conexión.
+async function refreshSharedHistory_(){
+  if(!online()||!API_URL)return;
+  try{
+    const server=await api('getMovimientosRecientes',{limite:40});
+    const pendientesLocales=state.pending.map(p=>({...p,cliente_nombre:(state.clients.find(c=>String(c.id)===String(p.cliente_id))||{}).nombre}));
+    state.history=[...pendientesLocales,...server].slice(0,50);
+  }catch(e){ /* si falla, se conserva el historial ya guardado en el dispositivo */ }
 }
 
 function openLogoutConfirm(){
