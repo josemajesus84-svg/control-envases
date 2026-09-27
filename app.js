@@ -61,8 +61,8 @@ function boxCapacity_(product){const t=state.catalog?.tipos?.find(x=>String(x.no
 function debtUnits_(v){return Number(v?.UNIDAD||0)}
 function debtUnitsInBoxes_(v){return Number(v?.UNIDAD_EN_CAJA||0)}
 function debtLooseUnits_(v){return debtUnits_(v)}
-function debtTotalEnvases_(v){return Number(v?.CAJA||0)+debtLooseUnits_(v)}
-function debtHas_(v){return Number(v?.CAJA||0)>0||debtLooseUnits_(v)>0}
+function debtTotalEnvases_(v){return Number(v?.CAJA||0)+debtLooseUnits_(v)+debtUnitsInBoxes_(v)}
+function debtHas_(v){return Number(v?.CAJA||0)>0||debtLooseUnits_(v)>0||debtUnitsInBoxes_(v)>0}
 function debtDisplay_(product,v){
   const completas=Math.max(0,Number(v?.CAJA_COMPLETA||0));
   const parciales=Math.max(0,Number(v?.CAJA_PARCIAL||0));
@@ -458,6 +458,9 @@ function showReturnView(clientId){
     if(parciales)entries.push({prod,pres:'CAJA_PARCIAL',max:parciales,label:`Caja parcial · ${dentro} u. dentro`});
     if(!completas&&!parciales&&Number(v.CAJA||0)>0)entries.push({prod,pres:'CAJA_COMPLETA',max:Number(v.CAJA),label:`Caja completa${boxCapacity_(prod)?` (${boxCapacity_(prod)} u.)`:''}`});
     if(Number(v.UNIDAD||0)>0)entries.push({prod,pres:'UNIDAD',max:Number(v.UNIDAD),label:'Unidades sueltas'});
+    // Compatibilidad: unidades registradas dentro de caja con el modelo anterior (antes de CAJA_PARCIAL).
+    // Sin esta línea esa deuda nunca aparecía para devolver y quedaba atascada para siempre.
+    if(Number(v.UNIDAD_EN_CAJA||0)>0)entries.push({prod,pres:'UNIDAD_EN_CAJA',max:Number(v.UNIDAD_EN_CAJA),label:'Unidades dentro de caja (registro anterior)'});
   });
   if(!entries.length){toast('Este cliente no tiene envases pendientes.');navigate('clientdetail',clientId);return}
   picker.classList.add('hidden'); form.classList.remove('hidden'); footer.classList.remove('hidden');
@@ -490,7 +493,8 @@ async function confirmReturn(clientId){
   const rows=[...document.querySelectorAll('#retRows .pending-row')].filter(r=>r.querySelector('.retChk').checked).map(r=>{
     const max=Number(r.dataset.max), qty=Number(r.querySelector('.retQty').value);
     const pres=r.dataset.pres; const content=Number(r.querySelector('.retContent')?.value||0);
-    return {tipo_caja:r.dataset.prod,tipo_envase:pres==='UNIDAD'?'UNIDAD':'CAJA',cantidad:qty,max,ubicacion_unidad:'SUELTA',contenido_unidades:pres==='CAJA_PARCIAL'?content:0,caja_clase:pres};
+    const esUnidad=pres==='UNIDAD'||pres==='UNIDAD_EN_CAJA';
+    return {tipo_caja:r.dataset.prod,tipo_envase:esUnidad?'UNIDAD':'CAJA',cantidad:qty,max,ubicacion_unidad:pres==='UNIDAD_EN_CAJA'?'EN_CAJA':'SUELTA',contenido_unidades:pres==='CAJA_PARCIAL'?content:0,caja_clase:pres};
   });
   if(!rows.length)return toast('Selecciona al menos un producto a devolver.');
   for(const x of rows){if(x.cantidad<=0||x.cantidad>x.max)return toast('La cantidad de "'+x.tipo_caja+'" supera la deuda pendiente.');if(x.caja_clase==='CAJA_PARCIAL'&&(!Number.isInteger(x.contenido_unidades)||x.contenido_unidades<=0))return toast('Indica cuántas unidades contiene cada caja parcial devuelta.');}
@@ -569,7 +573,7 @@ function showClientsView(){
   const draw=()=>{
     const q=($('#clientsSearch').value||'').toLowerCase();
     const list=state.clients.filter(c=>(c.nombre+' '+(c.dni||'')+' '+(c.celular||'')).toLowerCase().includes(q)).sort((a,b)=>String(a.nombre).localeCompare(String(b.nombre)));
-    $('#clientsList').innerHTML=list.length?list.map(c=>{const total=Object.values(c.deuda||{}).reduce((s,x)=>s+Number(x.CAJA||0)+Number(x.UNIDAD||0),0);
+    $('#clientsList').innerHTML=list.length?list.map(c=>{const total=Object.values(c.deuda||{}).reduce((s,x)=>s+debtTotalEnvases_(x),0);
       return `<button type="button" class="item client-pick" data-id="${esc(c.id)}"><div style="display:flex;align-items:center;gap:12px;min-width:0"><div class="avatar">${esc(initials(c.nombre))}</div><div style="min-width:0"><b>${esc(c.nombre)}</b><small>${esc(c.celular||'Sin celular')}</small></div></div>${total?`<span class="tag warn">${total} pend.</span>`:CHEVRON}</button>`}).join(''):emptyState('No hay clientes registrados todavía. Usa el botón de arriba para crear el primero.');
     $('#clientsList').querySelectorAll('.client-pick').forEach(b=>b.onclick=()=>navigate('clientdetail',b.dataset.id));
   };
